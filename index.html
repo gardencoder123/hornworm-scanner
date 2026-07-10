@@ -174,8 +174,7 @@
 
     <div id="placeholder">
       <h1>Hornworm Scanner</h1>
-      <p>Point the camera at tomato leaves and stems — found worms get boxed in red.</p>
-      <button id="setup-btn">Set up model</button>
+      <p id="placeholder-text">Point the camera at tomato leaves and stems — found worms get boxed in red.</p>
     </div>
   </div>
 
@@ -192,33 +191,21 @@
 <div id="sheet">
   <div class="sheet-handle"></div>
   <div id="close-sheet">✕</div>
-  <h2>Connect a model</h2>
-  <p class="sub">Two things needed, both free. Takes about 3 minutes the first time — saved on this device after that.</p>
+  <h2>Switch model</h2>
+  <p class="sub">Hornworms are connected automatically. Paste a different model's page URL here later to add other pests — no code needed.</p>
 
   <div class="step">
-    <div class="step-num">1</div>
+    <div class="step-num">→</div>
     <div class="step-body">
-      <h3>Get your personal API key</h3>
-      <p>Make a free Roboflow account, then open your API key page.</p>
-      <a class="linkbtn" href="https://app.roboflow.com/settings/api" target="_blank">Open API key page →</a>
+      <h3>Browse other pest models</h3>
+      <p>Copy a model's page URL from your address bar and paste it below.</p>
+      <a class="linkbtn" href="https://universe.roboflow.com/search?q=tomato%20pest" target="_blank">Browse pest models →</a>
     </div>
   </div>
-
-  <div class="step">
-    <div class="step-num">2</div>
-    <div class="step-body">
-      <h3>Find a hornworm model</h3>
-      <p>Open a model below, then just copy its page URL from your address bar and paste it in the box — no code needed, we'll figure out the rest.</p>
-      <a class="linkbtn" href="https://universe.roboflow.com/search?q=tomato%20hornworm" target="_blank">Browse hornworm models →</a>
-    </div>
-  </div>
-
-  <label>API key</label>
-  <input id="api-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="paste your personal API key">
 
   <label>Model page URL</label>
   <input id="model-full" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. universe.roboflow.com/test-fpkn1/tomato-insects-pjuun">
-  <div class="field-error" id="model-error">Couldn't find that model — check the URL and API key.</div>
+  <div class="field-error" id="model-error">Couldn't find that model — check the URL.</div>
 
 
   <label>Confidence % (lower = more detections, more false alarms)</label>
@@ -241,7 +228,6 @@
 
   const scanBtn = document.getElementById('scan-btn');
   const settingsBtn = document.getElementById('settings-btn');
-  const setupBtn = document.getElementById('setup-btn');
   const flipBtn = document.getElementById('flip-btn');
   const sheet = document.getElementById('sheet');
   const sheetBackdrop = document.getElementById('sheet-backdrop');
@@ -258,7 +244,13 @@
   const modelError = document.getElementById('model-error');
 
   const STORAGE_KEY = 'hornworm_scanner_config_v1';
-  let config = { apiKey:'', modelId:'', version:'', conf:40 };
+  const BAKED_API_KEY = 'rf_Np4hOvTugISeFZtnH7dCt60fQR53';
+  const CANDIDATE_MODELS = [
+    { workspace:'data-scientist-aktza', project:'harmful-pests' },
+    { workspace:'4702', project:'dangerous-farm-insects-dataset' },
+    { workspace:'pest-classification', project:'farm-pest' }
+  ];
+  let config = { apiKey:'', modelId:'', version:'', conf:40, sourceUrl:'' };
   let stream = null;
   let scanning = false;
   let loopTimer = null;
@@ -277,7 +269,33 @@
   }
   function clearConfig(){
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){ /* ignore */ }
-    config = { apiKey:'', modelId:'', version:'', conf:40 };
+    config = { apiKey:'', modelId:'', version:'', conf:40, sourceUrl:'' };
+  }
+
+  async function autoDiscoverModel(){
+    setStatus('Finding a hornworm model…');
+    for(const cand of CANDIDATE_MODELS){
+      try{
+        const url = `https://api.roboflow.com/${cand.workspace}/${cand.project}?api_key=${encodeURIComponent(BAKED_API_KEY)}`;
+        const resp = await fetch(url);
+        if(!resp.ok) continue;
+        const data = await resp.json();
+        const proj = data.project || {};
+        const classNames = Object.keys(proj.classes || {});
+        const hasHornworm = classNames.some(c => /hornworm/i.test(c));
+        const versions = proj.versions || [];
+        if(!hasHornworm || !versions.length) continue;
+        const versionNums = versions.map(v => parseInt(String(v.id).split('/').pop(), 10)).filter(n=>!isNaN(n));
+        const latestVersion = String(Math.max(...versionNums));
+        config = {
+          apiKey: BAKED_API_KEY, modelId: cand.project, version: latestVersion,
+          conf: config.conf || 40, sourceUrl: `universe.roboflow.com/${cand.workspace}/${cand.project}`
+        };
+        persistConfig();
+        return true;
+      }catch(e){ /* try next candidate */ }
+    }
+    return false;
   }
 
   function setStatus(msg, warn){
@@ -320,7 +338,6 @@
   });
 
   function fillSheetFromConfig(){
-    document.getElementById('api-key').value = config.apiKey;
     document.getElementById('model-full').value = config.sourceUrl || '';
     document.getElementById('conf').value = config.conf;
   }
@@ -337,15 +354,16 @@
     sheetBackdrop.style.display = 'none';
   }
   settingsBtn.addEventListener('click', openSheet);
-  setupBtn.addEventListener('click', openSheet);
   closeSheet.addEventListener('click', hideSheet);
   sheetBackdrop.addEventListener('click', hideSheet);
 
-  resetLink.addEventListener('click', ()=>{
+  resetLink.addEventListener('click', async ()=>{
     clearConfig();
     fillSheetFromConfig();
+    setStatus('Reconnecting to default hornworm model…');
+    const ok = await autoDiscoverModel();
     updatePlaceholder();
-    setStatus('Settings cleared');
+    setStatus(ok ? 'Reconnected — tap Start' : 'Could not reconnect — try again', !ok);
   });
 
   function parseWorkspaceProject(input){
@@ -357,31 +375,24 @@
   }
 
   saveBtn.addEventListener('click', async ()=>{
-    const apiKey = document.getElementById('api-key').value.trim();
     const modelFull = document.getElementById('model-full').value.trim();
     const conf = parseInt(document.getElementById('conf').value.trim() || '40', 10);
     modelError.style.display = 'none';
     saveHint.textContent = '';
 
-    if(!apiKey){
-      saveHint.textContent = 'API key is required.';
-      return;
-    }
     const parsed = parseWorkspaceProject(modelFull);
     if(!parsed){
-      saveHint.textContent = "Paste the model's page URL, e.g. universe.roboflow.com/workspace/project.";
+      saveHint.textContent = "Paste a model's page URL, e.g. universe.roboflow.com/workspace/project.";
       return;
     }
 
     saveBtn.disabled = true;
     saveHint.textContent = 'Looking up the model…';
     try{
-      const lookupUrl = `https://api.roboflow.com/${parsed.workspace}/${parsed.project}?api_key=${encodeURIComponent(apiKey)}`;
+      const lookupUrl = `https://api.roboflow.com/${parsed.workspace}/${parsed.project}?api_key=${encodeURIComponent(BAKED_API_KEY)}`;
       const resp = await fetch(lookupUrl);
       if(!resp.ok){
-        modelError.textContent = resp.status === 401
-          ? 'That API key was rejected — double check it.'
-          : "Couldn't find that model — check the URL.";
+        modelError.textContent = "Couldn't find that model — check the URL, or it may be private.";
         modelError.style.display = 'block';
         saveHint.textContent = '';
         return;
@@ -397,7 +408,7 @@
       const versionNums = versions.map(v => parseInt(String(v.id).split('/').pop(), 10)).filter(n=>!isNaN(n));
       const latestVersion = String(Math.max(...versionNums));
 
-      config = { apiKey, modelId: parsed.project, version: latestVersion, conf, sourceUrl: modelFull };
+      config = { apiKey: BAKED_API_KEY, modelId: parsed.project, version: latestVersion, conf, sourceUrl: modelFull };
       persistConfig();
       hideSheet();
       updatePlaceholder();
@@ -509,9 +520,14 @@
 
   loadConfig();
   updatePlaceholder();
-  startCamera().then(()=>{
-    if(!haveConfig()){ openSheet(); }
-  });
+  (async ()=>{
+    if(!haveConfig()){
+      const ok = await autoDiscoverModel();
+      updatePlaceholder();
+      if(!ok){ setStatus('Could not connect automatically — tap ⚙ to add a model manually', true); }
+    }
+    await startCamera();
+  })();
 })();
 </script>
 </body>
