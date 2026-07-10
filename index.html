@@ -272,44 +272,44 @@
     config = { apiKey:'', modelId:'', version:'', conf:40, sourceUrl:'' };
   }
 
+  const TEST_IMAGE_B64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/wAALCAABAAEBAREA/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAA/AKp//9k=';
+
+  async function probeVersion(modelId, version){
+    const url = `https://detect.roboflow.com/${modelId}/${version}?api_key=${encodeURIComponent(BAKED_API_KEY)}&confidence=40`;
+    const resp = await fetch(url, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+      body: TEST_IMAGE_B64
+    });
+    if(!resp.ok) return { ok:false, status:resp.status };
+    const data = await resp.json();
+    return { ok:true, data };
+  }
+
   let lastDiscoveryLog = [];
 
   async function autoDiscoverModel(){
     setStatus('Finding a hornworm model…');
     lastDiscoveryLog = [];
     for(const cand of CANDIDATE_MODELS){
-      const label = `${cand.workspace}/${cand.project}`;
-      try{
-        const url = `https://api.roboflow.com/${cand.workspace}/${cand.project}?api_key=${encodeURIComponent(BAKED_API_KEY)}`;
-        const resp = await fetch(url);
-        if(!resp.ok){
-          lastDiscoveryLog.push(`${label}: HTTP ${resp.status}`);
-          continue;
+      for(let v=1; v<=5; v++){
+        const label = `${cand.project}/${v}`;
+        try{
+          const result = await probeVersion(cand.project, v);
+          if(!result.ok){
+            lastDiscoveryLog.push(`${label}: HTTP ${result.status}`);
+            continue;
+          }
+          config = {
+            apiKey: BAKED_API_KEY, modelId: cand.project, version: String(v),
+            conf: config.conf || 40, sourceUrl: `universe.roboflow.com/${cand.workspace}/${cand.project}`
+          };
+          persistConfig();
+          lastDiscoveryLog.push(`${label}: connected`);
+          return true;
+        }catch(e){
+          lastDiscoveryLog.push(`${label}: ${e.message || 'network/CORS error'}`);
         }
-        const data = await resp.json();
-        const proj = data.project || {};
-        const classNames = Object.keys(proj.classes || {});
-        const hasHornworm = classNames.some(c => /hornworm/i.test(c));
-        const versions = proj.versions || [];
-        if(!hasHornworm){
-          lastDiscoveryLog.push(`${label}: no hornworm class (has: ${classNames.slice(0,4).join(', ')||'none'})`);
-          continue;
-        }
-        if(!versions.length){
-          lastDiscoveryLog.push(`${label}: no trained versions`);
-          continue;
-        }
-        const versionNums = versions.map(v => parseInt(String(v.id).split('/').pop(), 10)).filter(n=>!isNaN(n));
-        const latestVersion = String(Math.max(...versionNums));
-        config = {
-          apiKey: BAKED_API_KEY, modelId: cand.project, version: latestVersion,
-          conf: config.conf || 40, sourceUrl: `universe.roboflow.com/${cand.workspace}/${cand.project}`
-        };
-        persistConfig();
-        lastDiscoveryLog.push(`${label}: connected v${latestVersion}`);
-        return true;
-      }catch(e){
-        lastDiscoveryLog.push(`${label}: ${e.message || 'network/CORS error'}`);
       }
     }
     return false;
@@ -404,39 +404,28 @@
     }
 
     saveBtn.disabled = true;
-    saveHint.textContent = 'Looking up the model…';
-    try{
-      const lookupUrl = `https://api.roboflow.com/${parsed.workspace}/${parsed.project}?api_key=${encodeURIComponent(BAKED_API_KEY)}`;
-      const resp = await fetch(lookupUrl);
-      if(!resp.ok){
-        modelError.textContent = "Couldn't find that model — check the URL, or it may be private.";
-        modelError.style.display = 'block';
-        saveHint.textContent = '';
-        return;
-      }
-      const data = await resp.json();
-      const versions = (data.project && data.project.versions) || [];
-      if(!versions.length){
-        modelError.textContent = 'This project has no trained versions yet.';
-        modelError.style.display = 'block';
-        saveHint.textContent = '';
-        return;
-      }
-      const versionNums = versions.map(v => parseInt(String(v.id).split('/').pop(), 10)).filter(n=>!isNaN(n));
-      const latestVersion = String(Math.max(...versionNums));
-
-      config = { apiKey: BAKED_API_KEY, modelId: parsed.project, version: latestVersion, conf, sourceUrl: modelFull };
-      persistConfig();
-      hideSheet();
-      updatePlaceholder();
-      setStatus(`Connected to ${parsed.project} v${latestVersion} — tap Start`);
-    }catch(err){
-      saveHint.textContent = '';
-      modelError.textContent = 'Network error looking up the model — try again.';
-      modelError.style.display = 'block';
-    }finally{
-      saveBtn.disabled = false;
+    saveHint.textContent = 'Trying to connect…';
+    let connected = false;
+    for(let v=1; v<=10; v++){
+      try{
+        const result = await probeVersion(parsed.project, v);
+        if(result.ok){
+          config = { apiKey: BAKED_API_KEY, modelId: parsed.project, version: String(v), conf, sourceUrl: modelFull };
+          persistConfig();
+          hideSheet();
+          updatePlaceholder();
+          setStatus(`Connected to ${parsed.project} v${v} — tap Start`);
+          connected = true;
+          break;
+        }
+      }catch(e){ /* try next version */ }
     }
+    if(!connected){
+      modelError.textContent = "Couldn't connect to that model after trying versions 1–10 — check the URL.";
+      modelError.style.display = 'block';
+      saveHint.textContent = '';
+    }
+    saveBtn.disabled = false;
   });
 
   scanBtn.addEventListener('click', ()=>{
