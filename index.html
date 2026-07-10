@@ -272,19 +272,33 @@
     config = { apiKey:'', modelId:'', version:'', conf:40, sourceUrl:'' };
   }
 
+  let lastDiscoveryLog = [];
+
   async function autoDiscoverModel(){
     setStatus('Finding a hornworm model…');
+    lastDiscoveryLog = [];
     for(const cand of CANDIDATE_MODELS){
+      const label = `${cand.workspace}/${cand.project}`;
       try{
         const url = `https://api.roboflow.com/${cand.workspace}/${cand.project}?api_key=${encodeURIComponent(BAKED_API_KEY)}`;
         const resp = await fetch(url);
-        if(!resp.ok) continue;
+        if(!resp.ok){
+          lastDiscoveryLog.push(`${label}: HTTP ${resp.status}`);
+          continue;
+        }
         const data = await resp.json();
         const proj = data.project || {};
         const classNames = Object.keys(proj.classes || {});
         const hasHornworm = classNames.some(c => /hornworm/i.test(c));
         const versions = proj.versions || [];
-        if(!hasHornworm || !versions.length) continue;
+        if(!hasHornworm){
+          lastDiscoveryLog.push(`${label}: no hornworm class (has: ${classNames.slice(0,4).join(', ')||'none'})`);
+          continue;
+        }
+        if(!versions.length){
+          lastDiscoveryLog.push(`${label}: no trained versions`);
+          continue;
+        }
         const versionNums = versions.map(v => parseInt(String(v.id).split('/').pop(), 10)).filter(n=>!isNaN(n));
         const latestVersion = String(Math.max(...versionNums));
         config = {
@@ -292,8 +306,11 @@
           conf: config.conf || 40, sourceUrl: `universe.roboflow.com/${cand.workspace}/${cand.project}`
         };
         persistConfig();
+        lastDiscoveryLog.push(`${label}: connected v${latestVersion}`);
         return true;
-      }catch(e){ /* try next candidate */ }
+      }catch(e){
+        lastDiscoveryLog.push(`${label}: ${e.message || 'network/CORS error'}`);
+      }
     }
     return false;
   }
@@ -524,7 +541,16 @@
     if(!haveConfig()){
       const ok = await autoDiscoverModel();
       updatePlaceholder();
-      if(!ok){ setStatus('Could not connect automatically — tap ⚙ to add a model manually', true); }
+      if(!ok){
+        setStatus('Could not connect automatically', true);
+        const placeholderText = document.getElementById('placeholder-text');
+        if(placeholderText){
+          placeholderText.innerHTML = 'Could not connect to any default model:<br><br>' +
+            lastDiscoveryLog.map(l => '&bull; ' + l).join('<br>') +
+            '<br><br>Screenshot this and send it back so it can be fixed.';
+        }
+        placeholder.style.display = 'flex';
+      }
     }
     await startCamera();
   })();
