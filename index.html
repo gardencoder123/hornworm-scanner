@@ -75,6 +75,31 @@
     font-weight:700; font-size:14px; border:none;
   }
 
+  #photo-review{
+    position:absolute; inset:0; z-index:30; display:none;
+    background:#000;
+  }
+  #photo-review.open{ display:flex; align-items:center; justify-content:center; }
+  #photo-img{
+    position:absolute; inset:0; width:100%; height:100%; object-fit:contain;
+    background:#000;
+  }
+  #photo-overlay{
+    position:absolute; inset:0; width:100%; height:100%; pointer-events:none;
+  }
+  #photo-close{
+    position:absolute; top:calc(16px + env(safe-area-inset-top,0px)); right:16px; z-index:32;
+    width:38px; height:38px; border-radius:50%; background:rgba(15,22,17,0.75);
+    color:var(--paper); display:flex; align-items:center; justify-content:center; font-size:18px;
+  }
+  #photo-status{
+    position:absolute; left:0; right:0; bottom:28px; z-index:32; text-align:center;
+  }
+  #photo-status span{
+    font-family:var(--mono); font-size:12px; letter-spacing:0.06em; color:var(--paper);
+    background:rgba(15,22,17,0.78); padding:8px 16px; border-radius:100px;
+  }
+
   #status{ position:absolute; left:0; right:0; bottom:118px; z-index:20; text-align:center; pointer-events:none; }
   #status span{
     font-family:var(--mono); font-size:11px; letter-spacing:0.08em; color:var(--paper-dim);
@@ -176,16 +201,26 @@
       <h1>Hornworm Scanner</h1>
       <p id="placeholder-text">Point the camera at tomato leaves and stems — found worms get boxed in red.</p>
     </div>
+
+    <div id="photo-review">
+      <img id="photo-img" alt="Selected photo">
+      <canvas id="photo-overlay"></canvas>
+      <div id="photo-close">✕</div>
+      <div id="photo-status"><span id="photo-status-text">Analyzing…</span></div>
+    </div>
   </div>
 
   <div id="status"><span id="status-text">Not connected</span></div>
 
   <div id="bottombar">
+    <div class="icon-btn" id="photo-btn">🖼</div>
     <div class="icon-btn" id="settings-btn">⚙</div>
     <div id="scan-btn">Start</div>
     <div class="icon-btn" id="flip-btn">⟲</div>
   </div>
 </div>
+
+<input type="file" id="photo-input" accept="image/*" style="display:none">
 
 <div id="sheet-backdrop"></div>
 <div id="sheet">
@@ -229,6 +264,14 @@
   const scanBtn = document.getElementById('scan-btn');
   const settingsBtn = document.getElementById('settings-btn');
   const flipBtn = document.getElementById('flip-btn');
+  const photoBtn = document.getElementById('photo-btn');
+  const photoInput = document.getElementById('photo-input');
+  const photoReview = document.getElementById('photo-review');
+  const photoImg = document.getElementById('photo-img');
+  const photoOverlay = document.getElementById('photo-overlay');
+  const photoCtx = photoOverlay.getContext('2d');
+  const photoClose = document.getElementById('photo-close');
+  const photoStatusText = document.getElementById('photo-status-text');
   const sheet = document.getElementById('sheet');
   const sheetBackdrop = document.getElementById('sheet-backdrop');
   const closeSheet = document.getElementById('close-sheet');
@@ -483,12 +526,10 @@
     }
   }
 
-  function drawDetections(preds, srcW, srcH){
-    resizeOverlay();
-    octx.clearRect(0,0,overlay.width,overlay.height);
-
-    const scaleX = overlay.width / srcW;
-    const scaleY = overlay.height / srcH;
+  function drawBoxes(ctx, canvasEl, preds, srcW, srcH){
+    ctx.clearRect(0,0,canvasEl.width,canvasEl.height);
+    const scaleX = canvasEl.width / srcW;
+    const scaleY = canvasEl.height / srcH;
 
     let shown = preds;
     const named = preds.filter(p => p.class && /hornworm/i.test(p.class));
@@ -500,19 +541,24 @@
       const x = (p.x * scaleX) - w/2;
       const y = (p.y * scaleY) - h/2;
 
-      octx.strokeStyle = '#e6394a';
-      octx.lineWidth = 3;
-      octx.strokeRect(x, y, w, h);
+      ctx.strokeStyle = '#e6394a';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, w, h);
 
       const label = `${p.class || 'hornworm'} ${Math.round((p.confidence||0)*100)}%`;
-      octx.font = '600 12px monospace';
-      const textW = octx.measureText(label).width + 12;
-      octx.fillStyle = '#e6394a';
-      octx.fillRect(x, Math.max(0,y-20), textW, 20);
-      octx.fillStyle = '#0f1611';
-      octx.fillText(label, x+6, Math.max(14,y-6));
+      ctx.font = '600 12px monospace';
+      const textW = ctx.measureText(label).width + 12;
+      ctx.fillStyle = '#e6394a';
+      ctx.fillRect(x, Math.max(0,y-20), textW, 20);
+      ctx.fillStyle = '#0f1611';
+      ctx.fillText(label, x+6, Math.max(14,y-6));
     });
+    return shown;
+  }
 
+  function drawDetections(preds, srcW, srcH){
+    resizeOverlay();
+    const shown = drawBoxes(octx, overlay, preds, srcW, srcH);
     countEl.textContent = shown.length;
 
     if(shown.length > lastDetectionCount){
@@ -523,6 +569,70 @@
     }
     lastDetectionCount = shown.length;
   }
+
+  // ---------- photo upload & analyze ----------
+  photoBtn.addEventListener('click', ()=>{
+    if(!haveConfig()){ openSheet(); return; }
+    photoInput.value = '';
+    photoInput.click();
+  });
+
+  photoInput.addEventListener('change', ()=>{
+    const file = photoInput.files && photoInput.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      photoImg.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  photoImg.addEventListener('load', async ()=>{
+    photoReview.classList.add('open');
+    photoStatusText.textContent = 'Analyzing…';
+    const rect = photoImg.getBoundingClientRect();
+    photoOverlay.width = rect.width;
+    photoOverlay.height = rect.height;
+    photoCtx.clearRect(0,0,photoOverlay.width, photoOverlay.height);
+
+    try{
+      // draw to an offscreen canvas at natural size to get base64 for the API
+      const tmp = document.createElement('canvas');
+      tmp.width = photoImg.naturalWidth;
+      tmp.height = photoImg.naturalHeight;
+      const tctx = tmp.getContext('2d');
+      tctx.drawImage(photoImg, 0, 0, tmp.width, tmp.height);
+      const dataUrl = tmp.toDataURL('image/jpeg', 0.85);
+      const base64 = dataUrl.split(',')[1];
+
+      const url = `https://detect.roboflow.com/${encodeURIComponent(config.modelId)}/${encodeURIComponent(config.version)}?api_key=${encodeURIComponent(config.apiKey)}&confidence=${config.conf}`;
+      const resp = await fetch(url, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+        body: base64
+      });
+      if(!resp.ok){
+        photoStatusText.textContent = 'Model error — try again';
+        return;
+      }
+      const data = await resp.json();
+      const shown = drawBoxes(photoCtx, photoOverlay, data.predictions || [], tmp.width, tmp.height);
+      if(shown.length){
+        if(navigator.vibrate){ navigator.vibrate([120, 60, 120]); }
+        photoStatusText.textContent = `Found ${shown.length} hornworm${shown.length>1?'s':''}`;
+      }else{
+        photoStatusText.textContent = 'No hornworms found in this photo';
+      }
+    }catch(err){
+      photoStatusText.textContent = 'Network error analyzing photo';
+    }
+  });
+
+  photoClose.addEventListener('click', ()=>{
+    photoReview.classList.remove('open');
+    photoImg.src = '';
+    photoCtx.clearRect(0,0,photoOverlay.width, photoOverlay.height);
+  });
 
   loadConfig();
   updatePlaceholder();
