@@ -48,6 +48,17 @@
     70%{box-shadow:0 0 0 8px rgba(230,57,74,0);}
     100%{box-shadow:0 0 0 0 rgba(230,57,74,0);}
   }
+  .topbar-left{ display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
+  #mode-toggle{
+    display:flex; gap:4px; pointer-events:auto;
+    background:rgba(233,230,218,0.08); border-radius:100px; padding:3px;
+  }
+  .mode-opt{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.03em;
+    padding:5px 10px; border-radius:100px; border:none; background:transparent;
+    color:var(--paper-dim);
+  }
+  .mode-opt.active{ background:var(--leaf); color:var(--soil); font-weight:700; }
   #count-wrap{ text-align:right; pointer-events:none; }
   #count{ font-family:var(--mono); font-size:34px; font-weight:600; color:var(--paper); line-height:1; }
   #count-label{ font-family:var(--mono); font-size:9px; letter-spacing:0.14em; color:var(--paper-dim); text-transform:uppercase; margin-top:2px; }
@@ -184,7 +195,13 @@
 <div id="app">
 
   <div id="topbar">
-    <div id="brand"><span class="dot"></span><span id="brand-text">Idle</span></div>
+    <div class="topbar-left">
+      <div id="brand"><span class="dot"></span><span id="brand-text">Idle</span></div>
+      <div id="mode-toggle">
+        <button class="mode-opt active" id="mode-day" data-mode="day">☀ Day</button>
+        <button class="mode-opt" id="mode-night" data-mode="night">☾ Night</button>
+      </div>
+    </div>
     <div id="count-wrap">
       <div id="count">0</div>
       <div id="count-label">Found</div>
@@ -264,6 +281,8 @@
   const scanBtn = document.getElementById('scan-btn');
   const settingsBtn = document.getElementById('settings-btn');
   const flipBtn = document.getElementById('flip-btn');
+  const modeDayBtn = document.getElementById('mode-day');
+  const modeNightBtn = document.getElementById('mode-night');
   const photoBtn = document.getElementById('photo-btn');
   const photoInput = document.getElementById('photo-input');
   const photoReview = document.getElementById('photo-review');
@@ -296,6 +315,7 @@
   let config = { apiKey:'', modelId:'', version:'', conf:15, sourceUrl:'' };
   let stream = null;
   let scanning = false;
+  let mode = 'day';
   let loopTimer = null;
   let facingMode = 'environment';
   let lastDetectionCount = 0;
@@ -366,7 +386,7 @@
     return !!(config.apiKey.trim() && config.modelId.trim() && config.version.trim());
   }
   function updatePlaceholder(){
-    placeholder.style.display = haveConfig() ? 'none' : 'flex';
+    placeholder.style.display = (mode === 'night' || haveConfig()) ? 'none' : 'flex';
   }
 
   async function startCamera(){
@@ -471,8 +491,27 @@
     saveBtn.disabled = false;
   });
 
+  modeDayBtn.addEventListener('click', ()=> switchMode('day'));
+  modeNightBtn.addEventListener('click', ()=> switchMode('night'));
+
+  function switchMode(newMode){
+    if(mode === newMode) return;
+    const wasScanning = scanning;
+    if(wasScanning){ stopScan(); }
+    mode = newMode;
+    modeDayBtn.classList.toggle('active', mode === 'day');
+    modeNightBtn.classList.toggle('active', mode === 'night');
+    updatePlaceholder();
+    if(mode === 'night'){
+      setStatus('Night mode — use a UV flashlight, no model needed');
+    }else{
+      setStatus(haveConfig() ? 'Day mode — tap Start' : 'Set up a model to begin');
+    }
+    if(wasScanning){ startScan(); }
+  }
+
   scanBtn.addEventListener('click', ()=>{
-    if(!haveConfig()){ openSheet(); return; }
+    if(mode === 'day' && !haveConfig()){ openSheet(); return; }
     scanning ? stopScan() : startScan();
   });
 
@@ -482,8 +521,12 @@
     scanBtn.classList.add('on');
     brand.classList.add('live');
     brandText.textContent = 'Scanning';
-    setStatus('Scanning…');
-    loopTimer = setInterval(runDetection, 1200);
+    setStatus(mode === 'night' ? 'Scanning for UV glow…' : 'Scanning…');
+    if(mode === 'night'){
+      loopTimer = setInterval(runNightDetection, 350);
+    }else{
+      loopTimer = setInterval(runDetection, 1200);
+    }
   }
   function stopScan(){
     scanning = false;
@@ -494,6 +537,88 @@
     setStatus('Stopped');
     clearInterval(loopTimer);
     octx.clearRect(0,0,overlay.width,overlay.height);
+  }
+
+  // ---------- night mode: UV glow blob detection (no ML, pure pixel math) ----------
+  const NIGHT_GRID_W = 160;
+  function runNightDetection(){
+    if(inFlight || !video.videoWidth) return;
+    inFlight = true;
+    try{
+      const gridH = Math.round(NIGHT_GRID_W * (video.videoHeight / video.videoWidth));
+      captureCanvas.width = NIGHT_GRID_W;
+      captureCanvas.height = gridH;
+      cctx.drawImage(video, 0, 0, NIGHT_GRID_W, gridH);
+      const frame = cctx.getImageData(0, 0, NIGHT_GRID_W, gridH);
+      const px = frame.data;
+
+      // Mark pixels that look like UV-induced fluorescence: bright, green/yellow-dominant,
+      // clearly lit relative to a mostly-dark surrounding frame.
+      const glow = new Uint8Array(NIGHT_GRID_W * gridH);
+      for(let i=0, p=0; p < px.length; i++, p += 4){
+        const r = px[p], g = px[p+1], b = px[p+2];
+        const brightness = (r + g + b) / 3;
+        const greenish = g > 90 && g >= r * 0.85 && g >= b * 1.05;
+        if(brightness > 95 && greenish){ glow[i] = 1; }
+      }
+
+      // Connected-component blob detection on the small grid (iterative flood fill).
+      const visited = new Uint8Array(NIGHT_GRID_W * gridH);
+      const blobs = [];
+      const stack = [];
+      for(let y=0; y<gridH; y++){
+        for(let x=0; x<NIGHT_GRID_W; x++){
+          const idx = y*NIGHT_GRID_W + x;
+          if(!glow[idx] || visited[idx]) continue;
+          let minX=x, maxX=x, minY=y, maxY=y, count=0;
+          stack.length = 0;
+          stack.push(idx);
+          visited[idx] = 1;
+          while(stack.length){
+            const cur = stack.pop();
+            const cx = cur % NIGHT_GRID_W, cy = (cur / NIGHT_GRID_W)|0;
+            count++;
+            if(cx<minX)minX=cx; if(cx>maxX)maxX=cx;
+            if(cy<minY)minY=cy; if(cy>maxY)maxY=cy;
+            const neighbors = [cur-1, cur+1, cur-NIGHT_GRID_W, cur+NIGHT_GRID_W];
+            for(const n of neighbors){
+              if(n>=0 && n<glow.length && !visited[n] && glow[n]){
+                visited[n]=1; stack.push(n);
+              }
+            }
+          }
+          if(count >= 6){ blobs.push({minX,maxX,minY,maxY,count}); }
+        }
+      }
+
+      resizeOverlay();
+      octx.clearRect(0,0,overlay.width,overlay.height);
+      const scaleX = overlay.width / NIGHT_GRID_W;
+      const scaleY = overlay.height / gridH;
+      blobs.forEach(b=>{
+        const x = b.minX*scaleX, y = b.minY*scaleY;
+        const w = (b.maxX-b.minX+1)*scaleX, h = (b.maxY-b.minY+1)*scaleY;
+        octx.strokeStyle = '#e6394a';
+        octx.lineWidth = 3;
+        octx.strokeRect(x, y, w, h);
+        octx.fillStyle = '#e6394a';
+        octx.fillRect(x, Math.max(0,y-18), 60, 18);
+        octx.fillStyle = '#0f1611';
+        octx.font = '600 11px monospace';
+        octx.fillText('glow', x+6, Math.max(13,y-5));
+      });
+
+      countEl.textContent = blobs.length;
+      if(blobs.length > lastDetectionCount){
+        if(navigator.vibrate){ navigator.vibrate([120, 60, 120]); }
+        setStatus(`Found ${blobs.length} glowing spot${blobs.length>1?'s':''}`);
+      }else if(blobs.length === 0){
+        setStatus('Scanning for UV glow…');
+      }
+      lastDetectionCount = blobs.length;
+    }finally{
+      inFlight = false;
+    }
   }
 
   async function runDetection(){
