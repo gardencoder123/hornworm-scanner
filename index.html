@@ -25,15 +25,10 @@
     overflow:hidden;
     overscroll-behavior:none;
   }
-  #app{
-    position:fixed; inset:0;
-    display:flex; flex-direction:column;
-  }
+  #app{ position:fixed; inset:0; display:flex; flex-direction:column; }
 
-  /* ---------- top HUD bar ---------- */
   #topbar{
-    position:absolute; top:0; left:0; right:0;
-    z-index:20;
+    position:absolute; top:0; left:0; right:0; z-index:20;
     display:flex; align-items:center; justify-content:space-between;
     padding:14px 16px calc(10px + env(safe-area-inset-top,0px));
     padding-top:calc(14px + env(safe-area-inset-top,0px));
@@ -42,55 +37,26 @@
   }
   #brand{
     font-family:var(--mono); letter-spacing:0.12em; font-size:11px;
-    color:var(--leaf); text-transform:uppercase;
-    display:flex; align-items:center; gap:8px;
+    color:var(--leaf); text-transform:uppercase; display:flex; align-items:center; gap:8px;
   }
-  #brand .dot{
-    width:7px; height:7px; border-radius:50%;
-    background:var(--paper-dim);
-  }
+  #brand .dot{ width:7px; height:7px; border-radius:50%; background:var(--paper-dim); }
   #brand.live .dot{
-    background:var(--alert);
-    box-shadow:0 0 0 0 rgba(230,57,74,0.6);
-    animation:pulse 1.4s infinite;
+    background:var(--alert); animation:pulse 1.4s infinite;
   }
   @keyframes pulse{
     0%{box-shadow:0 0 0 0 rgba(230,57,74,0.55);}
     70%{box-shadow:0 0 0 8px rgba(230,57,74,0);}
     100%{box-shadow:0 0 0 0 rgba(230,57,74,0);}
   }
-  #count-wrap{
-    text-align:right; pointer-events:none;
-  }
-  #count{
-    font-family:var(--mono); font-size:34px; font-weight:600;
-    color:var(--paper); line-height:1;
-  }
-  #count-label{
-    font-family:var(--mono); font-size:9px; letter-spacing:0.14em;
-    color:var(--paper-dim); text-transform:uppercase; margin-top:2px;
-  }
+  #count-wrap{ text-align:right; pointer-events:none; }
+  #count{ font-family:var(--mono); font-size:34px; font-weight:600; color:var(--paper); line-height:1; }
+  #count-label{ font-family:var(--mono); font-size:9px; letter-spacing:0.14em; color:var(--paper-dim); text-transform:uppercase; margin-top:2px; }
 
-  /* ---------- camera stage ---------- */
-  #stage{
-    position:relative; flex:1; width:100%; height:100%;
-    background:#000;
-  }
-  video{
-    position:absolute; inset:0; width:100%; height:100%;
-    object-fit:cover; transform:scaleX(1);
-  }
-  canvas#overlay{
-    position:absolute; inset:0; width:100%; height:100%;
-    pointer-events:none;
-  }
+  #stage{ position:relative; flex:1; width:100%; height:100%; background:#000; }
+  video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  canvas#overlay{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
 
-  /* reticle corners for idle/searching state */
-  .corner{
-    position:absolute; width:26px; height:26px;
-    border:2px solid var(--leaf-dim);
-    opacity:0.55; z-index:5; pointer-events:none;
-  }
+  .corner{ position:absolute; width:26px; height:26px; border:2px solid var(--leaf-dim); opacity:0.55; z-index:5; pointer-events:none; }
   .corner.tl{top:18%; left:6%; border-right:none; border-bottom:none;}
   .corner.tr{top:18%; right:6%; border-left:none; border-bottom:none;}
   .corner.bl{bottom:22%; left:6%; border-right:none; border-top:none;}
@@ -102,28 +68,20 @@
     text-align:center; padding:32px;
     background:radial-gradient(ellipse at center, var(--soil-2), var(--soil));
   }
-  #placeholder h1{
-    font-family:var(--mono); font-size:15px; letter-spacing:0.08em;
-    color:var(--leaf); text-transform:uppercase; margin:0 0 10px;
-  }
-  #placeholder p{
-    font-size:14px; line-height:1.5; color:var(--paper-dim);
-    max-width:280px; margin:0 0 22px;
+  #placeholder h1{ font-family:var(--mono); font-size:15px; letter-spacing:0.08em; color:var(--leaf); text-transform:uppercase; margin:0 0 10px; }
+  #placeholder p{ font-size:14px; line-height:1.5; color:var(--paper-dim); max-width:280px; margin:0 0 22px; }
+  #placeholder button{
+    padding:13px 22px; border-radius:100px; background:var(--leaf); color:var(--soil);
+    font-weight:700; font-size:14px; border:none;
   }
 
-  /* ---------- status strip above bottom bar ---------- */
-  #status{
-    position:absolute; left:0; right:0; bottom:118px; z-index:20;
-    text-align:center; pointer-events:none;
-  }
+  #status{ position:absolute; left:0; right:0; bottom:118px; z-index:20; text-align:center; pointer-events:none; }
   #status span{
-    font-family:var(--mono); font-size:11px; letter-spacing:0.08em;
-    color:var(--paper-dim); background:rgba(15,22,17,0.72);
-    padding:6px 12px; border-radius:100px;
+    font-family:var(--mono); font-size:11px; letter-spacing:0.08em; color:var(--paper-dim);
+    background:rgba(15,22,17,0.72); padding:6px 12px; border-radius:100px;
   }
   #status.warn span{ color:var(--alert); }
 
-  /* ---------- bottom control bar ---------- */
   #bottombar{
     position:absolute; left:0; right:0; bottom:0; z-index:20;
     padding:18px 20px calc(22px + env(safe-area-inset-bottom,0px));
@@ -133,8 +91,7 @@
   .icon-btn{
     width:46px; height:46px; border-radius:50%;
     background:rgba(233,230,218,0.08); border:1px solid rgba(233,230,218,0.18);
-    color:var(--paper); display:flex; align-items:center; justify-content:center;
-    font-size:18px;
+    color:var(--paper); display:flex; align-items:center; justify-content:center; font-size:18px;
   }
   #scan-btn{
     width:74px; height:74px; border-radius:50%;
@@ -147,53 +104,55 @@
   #scan-btn.on{ background:var(--alert); }
   #scan-btn:active{ transform:scale(0.94); }
 
-  /* ---------- settings sheet ---------- */
-  #sheet-backdrop{
-    position:fixed; inset:0; background:rgba(0,0,0,0.55);
-    z-index:40; display:none;
-  }
+  #sheet-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:40; display:none; }
   #sheet{
     position:fixed; left:0; right:0; bottom:0; z-index:41;
     background:var(--soil-2); border-radius:18px 18px 0 0;
     padding:22px 22px calc(28px + env(safe-area-inset-bottom,0px));
     transform:translateY(100%); transition:transform 0.25s ease;
-    max-height:80vh; overflow-y:auto;
+    max-height:85vh; overflow-y:auto;
   }
   #sheet.open{ transform:translateY(0); }
-  #sheet h2{
-    font-family:var(--mono); font-size:13px; letter-spacing:0.1em;
-    text-transform:uppercase; color:var(--leaf); margin:0 0 4px;
+  #sheet h2{ font-family:var(--mono); font-size:13px; letter-spacing:0.1em; text-transform:uppercase; color:var(--leaf); margin:0 0 4px; }
+  #sheet .sub{ font-size:12.5px; color:var(--paper-dim); line-height:1.5; margin:0 0 16px; }
+
+  .step{
+    display:flex; gap:12px; padding:14px 0; border-top:1px solid rgba(233,230,218,0.1);
   }
-  #sheet .sub{
-    font-size:12.5px; color:var(--paper-dim); line-height:1.5; margin:0 0 18px;
+  .step:first-of-type{ border-top:none; }
+  .step-num{
+    flex:0 0 24px; height:24px; border-radius:50%; background:var(--leaf-dim);
+    color:var(--paper); font-family:var(--mono); font-size:12px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
   }
+  .step-body{ flex:1; }
+  .step-body h3{ font-size:14px; margin:0 0 4px; color:var(--paper); }
+  .step-body p{ font-size:12.5px; color:var(--paper-dim); line-height:1.45; margin:0 0 8px; }
+  .step-body a.linkbtn{
+    display:inline-block; font-size:12.5px; color:var(--leaf); text-decoration:underline;
+  }
+
   #sheet label{
-    display:block; font-family:var(--mono); font-size:10px;
-    letter-spacing:0.08em; text-transform:uppercase; color:var(--paper-dim);
-    margin:14px 0 6px;
+    display:block; font-family:var(--mono); font-size:10px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--paper-dim); margin:14px 0 6px;
   }
   #sheet input{
     width:100%; background:var(--soil); border:1px solid rgba(233,230,218,0.18);
-    border-radius:10px; padding:12px 12px; color:var(--paper); font-size:15px;
-    font-family:var(--mono);
+    border-radius:10px; padding:12px 12px; color:var(--paper); font-size:15px; font-family:var(--mono);
   }
   #sheet input:focus{ outline:none; border-color:var(--leaf); }
   #sheet .row{ display:flex; gap:10px; }
   #sheet .row > div{ flex:1; }
   #save-btn{
     margin-top:20px; width:100%; padding:14px; border-radius:12px;
-    background:var(--leaf); color:var(--soil); font-weight:700;
-    font-size:14px; border:none;
+    background:var(--leaf); color:var(--soil); font-weight:700; font-size:14px; border:none;
   }
+  #save-hint{ text-align:center; font-size:11.5px; color:var(--paper-dim); margin-top:10px; }
+  #reset-link{ display:block; text-align:center; margin-top:14px; font-size:12px; color:var(--paper-dim); text-decoration:underline; }
   #sheet a{ color:var(--leaf); }
-  #close-sheet{
-    position:absolute; top:16px; right:18px; color:var(--paper-dim);
-    font-size:20px; line-height:1;
-  }
-  .sheet-handle{
-    width:36px; height:4px; border-radius:4px; background:rgba(233,230,218,0.25);
-    margin:0 auto 16px;
-  }
+  #close-sheet{ position:absolute; top:16px; right:18px; color:var(--paper-dim); font-size:20px; line-height:1; }
+  .sheet-handle{ width:36px; height:4px; border-radius:4px; background:rgba(233,230,218,0.25); margin:0 auto 16px; }
+  .field-error{ color:var(--alert); font-size:11.5px; margin-top:6px; display:none; }
 </style>
 </head>
 <body>
@@ -215,7 +174,8 @@
 
     <div id="placeholder">
       <h1>Hornworm Scanner</h1>
-      <p>Add your Roboflow model to start. Point the camera at tomato leaves and stems — found worms get boxed in red.</p>
+      <p>Point the camera at tomato leaves and stems — found worms get boxed in red.</p>
+      <button id="setup-btn">Set up model</button>
     </div>
   </div>
 
@@ -232,33 +192,40 @@
 <div id="sheet">
   <div class="sheet-handle"></div>
   <div id="close-sheet">✕</div>
-  <h2>Connect model</h2>
-  <p class="sub">
-    Uses a Roboflow-hosted model. Free account at
-    <a href="https://roboflow.com" target="_blank">roboflow.com</a> →
-    search Universe for a "tomato hornworm" model (or your own trained one) →
-    copy its API key and model ID from the deploy/API tab.
-    Nothing is saved after you close this tab.
-  </p>
+  <h2>Connect a model</h2>
+  <p class="sub">Two things needed, both free. Takes about 3 minutes the first time — saved on this device after that.</p>
 
-  <label>API key</label>
-  <input id="api-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. aBcD1234...">
-
-  <label>Model ID (workspace/model-slug)</label>
-  <input id="model-id" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. collection-of-insect-images">
-
-  <div class="row">
-    <div>
-      <label>Version</label>
-      <input id="model-version" type="text" inputmode="numeric" placeholder="1">
-    </div>
-    <div>
-      <label>Confidence %</label>
-      <input id="conf" type="text" inputmode="numeric" placeholder="40">
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      <h3>Get your personal API key</h3>
+      <p>Make a free Roboflow account, then open your API key page.</p>
+      <a class="linkbtn" href="https://app.roboflow.com/settings/api" target="_blank">Open API key page →</a>
     </div>
   </div>
 
-  <button id="save-btn">Save & scan</button>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      <h3>Find a hornworm model</h3>
+      <p>Open a model, then look for the code snippet on its page — it shows a model ID like <b>project-name/8</b>. Copy that whole string.</p>
+      <a class="linkbtn" href="https://universe.roboflow.com/search?q=tomato%20hornworm" target="_blank">Browse hornworm models →</a>
+    </div>
+  </div>
+
+  <label>API key</label>
+  <input id="api-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="paste your personal API key">
+
+  <label>Model ID (from the code snippet)</label>
+  <input id="model-full" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. tomato-insects-pjuun/8">
+  <div class="field-error" id="model-error">Should look like name/number — check the snippet again.</div>
+
+  <label>Confidence % (lower = more detections, more false alarms)</label>
+  <input id="conf" type="text" inputmode="numeric" placeholder="40">
+
+  <button id="save-btn">Save & start scanning</button>
+  <div id="save-hint"></div>
+  <a id="reset-link">Clear saved settings</a>
 </div>
 
 <canvas id="capture-canvas" style="display:none;"></canvas>
@@ -273,19 +240,24 @@
 
   const scanBtn = document.getElementById('scan-btn');
   const settingsBtn = document.getElementById('settings-btn');
+  const setupBtn = document.getElementById('setup-btn');
   const flipBtn = document.getElementById('flip-btn');
   const sheet = document.getElementById('sheet');
   const sheetBackdrop = document.getElementById('sheet-backdrop');
   const closeSheet = document.getElementById('close-sheet');
   const saveBtn = document.getElementById('save-btn');
+  const saveHint = document.getElementById('save-hint');
+  const resetLink = document.getElementById('reset-link');
   const placeholder = document.getElementById('placeholder');
   const brandText = document.getElementById('brand-text');
   const brand = document.getElementById('brand');
   const statusText = document.getElementById('status-text');
   const statusWrap = document.getElementById('status');
   const countEl = document.getElementById('count');
+  const modelError = document.getElementById('model-error');
 
-  let config = { apiKey:'', modelId:'', version:'1', conf:40 };
+  const STORAGE_KEY = 'hornworm_scanner_config_v1';
+  let config = { apiKey:'', modelId:'', version:'', conf:40 };
   let stream = null;
   let scanning = false;
   let loopTimer = null;
@@ -293,33 +265,47 @@
   let lastDetectionCount = 0;
   let inFlight = false;
 
+  function loadConfig(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(raw){ config = Object.assign(config, JSON.parse(raw)); }
+    }catch(e){ /* ignore */ }
+  }
+  function persistConfig(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); }catch(e){ /* ignore */ }
+  }
+  function clearConfig(){
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){ /* ignore */ }
+    config = { apiKey:'', modelId:'', version:'', conf:40 };
+  }
+
   function setStatus(msg, warn){
     statusText.textContent = msg;
     statusWrap.classList.toggle('warn', !!warn);
   }
-
   function haveConfig(){
-    return config.apiKey.trim() && config.modelId.trim() && config.version.trim();
+    return !!(config.apiKey.trim() && config.modelId.trim() && config.version.trim());
+  }
+  function updatePlaceholder(){
+    placeholder.style.display = haveConfig() ? 'none' : 'flex';
   }
 
-  // ---------- camera ----------
   async function startCamera(){
     try{
       if(stream){ stream.getTracks().forEach(t=>t.stop()); }
       stream = await navigator.mediaDevices.getUserMedia({
-        video:{ facingMode: { ideal: facingMode }, width:{ideal:1280}, height:{ideal:720} },
+        video:{ facingMode:{ ideal:facingMode }, width:{ideal:1280}, height:{ideal:720} },
         audio:false
       });
       video.srcObject = stream;
       await video.play();
       resizeOverlay();
-      placeholder.style.display = haveConfig() ? 'none' : 'flex';
-      setStatus(haveConfig() ? 'Camera ready — tap Start' : 'Camera ready — connect a model first');
+      updatePlaceholder();
+      setStatus(haveConfig() ? 'Ready — tap Start' : 'Set up a model to begin');
     }catch(err){
       setStatus('Camera access denied or unavailable', true);
     }
   }
-
   function resizeOverlay(){
     const rect = video.getBoundingClientRect();
     overlay.width = rect.width;
@@ -332,12 +318,15 @@
     startCamera();
   });
 
-  // ---------- settings sheet ----------
-  function openSheet(){
+  function fillSheetFromConfig(){
     document.getElementById('api-key').value = config.apiKey;
-    document.getElementById('model-id').value = config.modelId;
-    document.getElementById('model-version').value = config.version;
+    document.getElementById('model-full').value = config.modelId && config.version ? (config.modelId + '/' + config.version) : '';
     document.getElementById('conf').value = config.conf;
+  }
+  function openSheet(){
+    fillSheetFromConfig();
+    modelError.style.display = 'none';
+    saveHint.textContent = '';
     sheet.classList.add('open');
     sheetBackdrop.style.display = 'block';
   }
@@ -346,24 +335,38 @@
     sheetBackdrop.style.display = 'none';
   }
   settingsBtn.addEventListener('click', openSheet);
+  setupBtn.addEventListener('click', openSheet);
   closeSheet.addEventListener('click', hideSheet);
   sheetBackdrop.addEventListener('click', hideSheet);
 
-  saveBtn.addEventListener('click', ()=>{
-    config.apiKey = document.getElementById('api-key').value.trim();
-    config.modelId = document.getElementById('model-id').value.trim();
-    config.version = (document.getElementById('model-version').value.trim() || '1');
-    config.conf = parseInt(document.getElementById('conf').value.trim() || '40', 10);
-    hideSheet();
-    if(haveConfig()){
-      placeholder.style.display = 'none';
-      setStatus('Model connected — tap Start to scan');
-    }else{
-      setStatus('Missing API key or model ID', true);
-    }
+  resetLink.addEventListener('click', ()=>{
+    clearConfig();
+    fillSheetFromConfig();
+    updatePlaceholder();
+    setStatus('Settings cleared');
   });
 
-  // ---------- scan loop ----------
+  saveBtn.addEventListener('click', ()=>{
+    const apiKey = document.getElementById('api-key').value.trim();
+    const modelFull = document.getElementById('model-full').value.trim();
+    const conf = parseInt(document.getElementById('conf').value.trim() || '40', 10);
+
+    const parts = modelFull.split('/').map(s=>s.trim()).filter(Boolean);
+    if(parts.length < 2 || !apiKey){
+      modelError.style.display = parts.length < 2 ? 'block' : 'none';
+      saveHint.textContent = !apiKey ? 'API key is required.' : '';
+      return;
+    }
+    const version = parts[parts.length-1];
+    const modelId = parts.slice(0, parts.length-1).join('/');
+
+    config = { apiKey, modelId, version, conf };
+    persistConfig();
+    hideSheet();
+    updatePlaceholder();
+    setStatus('Model connected — tap Start to scan');
+  });
+
   scanBtn.addEventListener('click', ()=>{
     if(!haveConfig()){ openSheet(); return; }
     scanning ? stopScan() : startScan();
@@ -378,7 +381,6 @@
     setStatus('Scanning…');
     loopTimer = setInterval(runDetection, 1200);
   }
-
   function stopScan(){
     scanning = false;
     scanBtn.textContent = 'Start';
@@ -408,8 +410,7 @@
       });
 
       if(!resp.ok){
-        const t = await resp.text();
-        setStatus('Model error — check API key / model ID', true);
+        setStatus(resp.status === 401 ? 'Invalid API key' : 'Model error — check the model ID', true);
         return;
       }
       const data = await resp.json();
@@ -428,14 +429,11 @@
     const scaleX = overlay.width / srcW;
     const scaleY = overlay.height / srcH;
 
-    let hornwormPreds = preds.filter(p =>
-      !p.class || /hornworm/i.test(p.class) || preds.length // if model is single-class, keep all
-    );
-    // if model has multiple classes and some match "hornworm", prefer those strictly
+    let shown = preds;
     const named = preds.filter(p => p.class && /hornworm/i.test(p.class));
-    if(named.length){ hornwormPreds = named; }
+    if(named.length){ shown = named; }
 
-    hornwormPreds.forEach(p=>{
+    shown.forEach(p=>{
       const w = p.width * scaleX;
       const h = p.height * scaleY;
       const x = (p.x * scaleX) - w/2;
@@ -452,23 +450,24 @@
       octx.fillRect(x, Math.max(0,y-20), textW, 20);
       octx.fillStyle = '#0f1611';
       octx.fillText(label, x+6, Math.max(14,y-6));
-
-      // arrow to nearest edge if box center is far off-screen (placeholder for future use)
     });
 
-    countEl.textContent = hornwormPreds.length;
+    countEl.textContent = shown.length;
 
-    if(hornwormPreds.length > lastDetectionCount){
+    if(shown.length > lastDetectionCount){
       if(navigator.vibrate){ navigator.vibrate([120, 60, 120]); }
-      setStatus(`Found ${hornwormPreds.length} — check the red box${hornwormPreds.length>1?'es':''}`);
-    }else if(hornwormPreds.length === 0){
+      setStatus(`Found ${shown.length} — check the red box${shown.length>1?'es':''}`);
+    }else if(shown.length === 0){
       setStatus('Scanning…');
     }
-    lastDetectionCount = hornwormPreds.length;
+    lastDetectionCount = shown.length;
   }
 
-  // init
-  startCamera();
+  loadConfig();
+  updatePlaceholder();
+  startCamera().then(()=>{
+    if(!haveConfig()){ openSheet(); }
+  });
 })();
 </script>
 </body>
