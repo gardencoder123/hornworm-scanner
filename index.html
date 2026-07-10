@@ -244,7 +244,7 @@
 
 
   <label>Confidence % (lower = more detections, more false alarms)</label>
-  <input id="conf" type="text" inputmode="numeric" placeholder="40">
+  <input id="conf" type="text" inputmode="numeric" placeholder="15">
 
   <button id="save-btn">Save & start scanning</button>
   <div id="save-hint"></div>
@@ -293,7 +293,7 @@
     { workspace:'4702', project:'dangerous-farm-insects-dataset' },
     { workspace:'pest-classification', project:'farm-pest' }
   ];
-  let config = { apiKey:'', modelId:'', version:'', conf:40, sourceUrl:'' };
+  let config = { apiKey:'', modelId:'', version:'', conf:15, sourceUrl:'' };
   let stream = null;
   let scanning = false;
   let loopTimer = null;
@@ -312,7 +312,7 @@
   }
   function clearConfig(){
     try{ localStorage.removeItem(STORAGE_KEY); }catch(e){ /* ignore */ }
-    config = { apiKey:'', modelId:'', version:'', conf:40, sourceUrl:'' };
+    config = { apiKey:'', modelId:'', version:'', conf:15, sourceUrl:'' };
   }
 
   const TEST_IMAGE_B64 = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkKDA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/wAALCAABAAEBAREA/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oACAEBAAA/AKp//9k=';
@@ -345,7 +345,7 @@
           }
           config = {
             apiKey: BAKED_API_KEY, modelId: cand.project, version: String(v),
-            conf: config.conf || 40, sourceUrl: `universe.roboflow.com/${cand.workspace}/${cand.project}`
+            conf: config.conf || 15, sourceUrl: `universe.roboflow.com/${cand.workspace}/${cand.project}`
           };
           persistConfig();
           lastDiscoveryLog.push(`${label}: connected`);
@@ -436,7 +436,7 @@
 
   saveBtn.addEventListener('click', async ()=>{
     const modelFull = document.getElementById('model-full').value.trim();
-    const conf = parseInt(document.getElementById('conf').value.trim() || '40', 10);
+    const conf = parseInt(document.getElementById('conf').value.trim() || '15', 10);
     modelError.style.display = 'none';
     saveHint.textContent = '';
 
@@ -616,12 +616,16 @@
         return;
       }
       const data = await resp.json();
-      const shown = drawBoxes(photoCtx, photoOverlay, data.predictions || [], tmp.width, tmp.height);
-      if(shown.length){
+      const allPreds = data.predictions || [];
+      const shown = drawBoxes(photoCtx, photoOverlay, allPreds, tmp.width, tmp.height);
+      if(shown.length && allPreds.some(p => p.class && /hornworm/i.test(p.class))){
         if(navigator.vibrate){ navigator.vibrate([120, 60, 120]); }
         photoStatusText.textContent = `Found ${shown.length} hornworm${shown.length>1?'s':''}`;
+      }else if(allPreds.length){
+        const summary = allPreds.map(p => `${p.class||'?'} ${Math.round((p.confidence||0)*100)}%`).slice(0,4).join(', ');
+        photoStatusText.textContent = `No hornworms — but saw: ${summary}`;
       }else{
-        photoStatusText.textContent = 'No hornworms found in this photo';
+        photoStatusText.textContent = 'Nothing detected in this photo at all';
       }
     }catch(err){
       photoStatusText.textContent = 'Network error analyzing photo';
