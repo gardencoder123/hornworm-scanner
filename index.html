@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Hornworm Scanner</title>
+<style>
+  :root{
+    --soil:#0f1611;
+    --soil-2:#161f18;
+    --leaf:#7cb342;
+    --leaf-dim:#4b7a2a;
+    --alert:#e6394a;
+    --alert-dim:#7a1f28;
+    --paper:#e9e6da;
+    --paper-dim:#a9a496;
+    --mono: "SF Mono", "Menlo", "Consolas", monospace;
+    --sans: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%; width:100%;
+    background:var(--soil); color:var(--paper);
+    font-family:var(--sans);
+    overflow:hidden;
+    overscroll-behavior:none;
+  }
+  #app{
+    position:fixed; inset:0;
+    display:flex; flex-direction:column;
+  }
+
+  /* ---------- top HUD bar ---------- */
+  #topbar{
+    position:absolute; top:0; left:0; right:0;
+    z-index:20;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 16px calc(10px + env(safe-area-inset-top,0px));
+    padding-top:calc(14px + env(safe-area-inset-top,0px));
+    background:linear-gradient(to bottom, rgba(15,22,17,0.9), rgba(15,22,17,0));
+    pointer-events:none;
+  }
+  #brand{
+    font-family:var(--mono); letter-spacing:0.12em; font-size:11px;
+    color:var(--leaf); text-transform:uppercase;
+    display:flex; align-items:center; gap:8px;
+  }
+  #brand .dot{
+    width:7px; height:7px; border-radius:50%;
+    background:var(--paper-dim);
+  }
+  #brand.live .dot{
+    background:var(--alert);
+    box-shadow:0 0 0 0 rgba(230,57,74,0.6);
+    animation:pulse 1.4s infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(230,57,74,0.55);}
+    70%{box-shadow:0 0 0 8px rgba(230,57,74,0);}
+    100%{box-shadow:0 0 0 0 rgba(230,57,74,0);}
+  }
+  #count-wrap{
+    text-align:right; pointer-events:none;
+  }
+  #count{
+    font-family:var(--mono); font-size:34px; font-weight:600;
+    color:var(--paper); line-height:1;
+  }
+  #count-label{
+    font-family:var(--mono); font-size:9px; letter-spacing:0.14em;
+    color:var(--paper-dim); text-transform:uppercase; margin-top:2px;
+  }
+
+  /* ---------- camera stage ---------- */
+  #stage{
+    position:relative; flex:1; width:100%; height:100%;
+    background:#000;
+  }
+  video{
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; transform:scaleX(1);
+  }
+  canvas#overlay{
+    position:absolute; inset:0; width:100%; height:100%;
+    pointer-events:none;
+  }
+
+  /* reticle corners for idle/searching state */
+  .corner{
+    position:absolute; width:26px; height:26px;
+    border:2px solid var(--leaf-dim);
+    opacity:0.55; z-index:5; pointer-events:none;
+  }
+  .corner.tl{top:18%; left:6%; border-right:none; border-bottom:none;}
+  .corner.tr{top:18%; right:6%; border-left:none; border-bottom:none;}
+  .corner.bl{bottom:22%; left:6%; border-right:none; border-top:none;}
+  .corner.br{bottom:22%; right:6%; border-left:none; border-top:none;}
+
+  #placeholder{
+    position:absolute; inset:0; z-index:15;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:32px;
+    background:radial-gradient(ellipse at center, var(--soil-2), var(--soil));
+  }
+  #placeholder h1{
+    font-family:var(--mono); font-size:15px; letter-spacing:0.08em;
+    color:var(--leaf); text-transform:uppercase; margin:0 0 10px;
+  }
+  #placeholder p{
+    font-size:14px; line-height:1.5; color:var(--paper-dim);
+    max-width:280px; margin:0 0 22px;
+  }
+
+  /* ---------- status strip above bottom bar ---------- */
+  #status{
+    position:absolute; left:0; right:0; bottom:118px; z-index:20;
+    text-align:center; pointer-events:none;
+  }
+  #status span{
+    font-family:var(--mono); font-size:11px; letter-spacing:0.08em;
+    color:var(--paper-dim); background:rgba(15,22,17,0.72);
+    padding:6px 12px; border-radius:100px;
+  }
+  #status.warn span{ color:var(--alert); }
+
+  /* ---------- bottom control bar ---------- */
+  #bottombar{
+    position:absolute; left:0; right:0; bottom:0; z-index:20;
+    padding:18px 20px calc(22px + env(safe-area-inset-bottom,0px));
+    background:linear-gradient(to top, rgba(15,22,17,0.95), rgba(15,22,17,0));
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .icon-btn{
+    width:46px; height:46px; border-radius:50%;
+    background:rgba(233,230,218,0.08); border:1px solid rgba(233,230,218,0.18);
+    color:var(--paper); display:flex; align-items:center; justify-content:center;
+    font-size:18px;
+  }
+  #scan-btn{
+    width:74px; height:74px; border-radius:50%;
+    background:var(--leaf); border:4px solid rgba(233,230,218,0.25);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); color:var(--soil); font-weight:700; font-size:10px;
+    letter-spacing:0.06em; text-transform:uppercase; text-align:center;
+    transition:transform 0.15s ease, background 0.2s ease;
+  }
+  #scan-btn.on{ background:var(--alert); }
+  #scan-btn:active{ transform:scale(0.94); }
+
+  /* ---------- settings sheet ---------- */
+  #sheet-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.55);
+    z-index:40; display:none;
+  }
+  #sheet{
+    position:fixed; left:0; right:0; bottom:0; z-index:41;
+    background:var(--soil-2); border-radius:18px 18px 0 0;
+    padding:22px 22px calc(28px + env(safe-area-inset-bottom,0px));
+    transform:translateY(100%); transition:transform 0.25s ease;
+    max-height:80vh; overflow-y:auto;
+  }
+  #sheet.open{ transform:translateY(0); }
+  #sheet h2{
+    font-family:var(--mono); font-size:13px; letter-spacing:0.1em;
+    text-transform:uppercase; color:var(--leaf); margin:0 0 4px;
+  }
+  #sheet .sub{
+    font-size:12.5px; color:var(--paper-dim); line-height:1.5; margin:0 0 18px;
+  }
+  #sheet label{
+    display:block; font-family:var(--mono); font-size:10px;
+    letter-spacing:0.08em; text-transform:uppercase; color:var(--paper-dim);
+    margin:14px 0 6px;
+  }
+  #sheet input{
+    width:100%; background:var(--soil); border:1px solid rgba(233,230,218,0.18);
+    border-radius:10px; padding:12px 12px; color:var(--paper); font-size:15px;
+    font-family:var(--mono);
+  }
+  #sheet input:focus{ outline:none; border-color:var(--leaf); }
+  #sheet .row{ display:flex; gap:10px; }
+  #sheet .row > div{ flex:1; }
+  #save-btn{
+    margin-top:20px; width:100%; padding:14px; border-radius:12px;
+    background:var(--leaf); color:var(--soil); font-weight:700;
+    font-size:14px; border:none;
+  }
+  #sheet a{ color:var(--leaf); }
+  #close-sheet{
+    position:absolute; top:16px; right:18px; color:var(--paper-dim);
+    font-size:20px; line-height:1;
+  }
+  .sheet-handle{
+    width:36px; height:4px; border-radius:4px; background:rgba(233,230,218,0.25);
+    margin:0 auto 16px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar">
+    <div id="brand"><span class="dot"></span><span id="brand-text">Idle</span></div>
+    <div id="count-wrap">
+      <div id="count">0</div>
+      <div id="count-label">Found</div>
+    </div>
+  </div>
+
+  <div id="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+
+    <div id="placeholder">
+      <h1>Hornworm Scanner</h1>
+      <p>Add your Roboflow model to start. Point the camera at tomato leaves and stems — found worms get boxed in red.</p>
+    </div>
+  </div>
+
+  <div id="status"><span id="status-text">Not connected</span></div>
+
+  <div id="bottombar">
+    <div class="icon-btn" id="settings-btn">⚙</div>
+    <div id="scan-btn">Start</div>
+    <div class="icon-btn" id="flip-btn">⟲</div>
+  </div>
+</div>
+
+<div id="sheet-backdrop"></div>
+<div id="sheet">
+  <div class="sheet-handle"></div>
+  <div id="close-sheet">✕</div>
+  <h2>Connect model</h2>
+  <p class="sub">
+    Uses a Roboflow-hosted model. Free account at
+    <a href="https://roboflow.com" target="_blank">roboflow.com</a> →
+    search Universe for a "tomato hornworm" model (or your own trained one) →
+    copy its API key and model ID from the deploy/API tab.
+    Nothing is saved after you close this tab.
+  </p>
+
+  <label>API key</label>
+  <input id="api-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. aBcD1234...">
+
+  <label>Model ID (workspace/model-slug)</label>
+  <input id="model-id" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. collection-of-insect-images">
+
+  <div class="row">
+    <div>
+      <label>Version</label>
+      <input id="model-version" type="text" inputmode="numeric" placeholder="1">
+    </div>
+    <div>
+      <label>Confidence %</label>
+      <input id="conf" type="text" inputmode="numeric" placeholder="40">
+    </div>
+  </div>
+
+  <button id="save-btn">Save & scan</button>
+</div>
+
+<canvas id="capture-canvas" style="display:none;"></canvas>
+
+<script>
+(function(){
+  const video = document.getElementById('video');
+  const overlay = document.getElementById('overlay');
+  const octx = overlay.getContext('2d');
+  const captureCanvas = document.getElementById('capture-canvas');
+  const cctx = captureCanvas.getContext('2d');
+
+  const scanBtn = document.getElementById('scan-btn');
+  const settingsBtn = document.getElementById('settings-btn');
+  const flipBtn = document.getElementById('flip-btn');
+  const sheet = document.getElementById('sheet');
+  const sheetBackdrop = document.getElementById('sheet-backdrop');
+  const closeSheet = document.getElementById('close-sheet');
+  const saveBtn = document.getElementById('save-btn');
+  const placeholder = document.getElementById('placeholder');
+  const brandText = document.getElementById('brand-text');
+  const brand = document.getElementById('brand');
+  const statusText = document.getElementById('status-text');
+  const statusWrap = document.getElementById('status');
+  const countEl = document.getElementById('count');
+
+  let config = { apiKey:'', modelId:'', version:'1', conf:40 };
+  let stream = null;
+  let scanning = false;
+  let loopTimer = null;
+  let facingMode = 'environment';
+  let lastDetectionCount = 0;
+  let inFlight = false;
+
+  function setStatus(msg, warn){
+    statusText.textContent = msg;
+    statusWrap.classList.toggle('warn', !!warn);
+  }
+
+  function haveConfig(){
+    return config.apiKey.trim() && config.modelId.trim() && config.version.trim();
+  }
+
+  // ---------- camera ----------
+  async function startCamera(){
+    try{
+      if(stream){ stream.getTracks().forEach(t=>t.stop()); }
+      stream = await navigator.mediaDevices.getUserMedia({
+        video:{ facingMode: { ideal: facingMode }, width:{ideal:1280}, height:{ideal:720} },
+        audio:false
+      });
+      video.srcObject = stream;
+      await video.play();
+      resizeOverlay();
+      placeholder.style.display = haveConfig() ? 'none' : 'flex';
+      setStatus(haveConfig() ? 'Camera ready — tap Start' : 'Camera ready — connect a model first');
+    }catch(err){
+      setStatus('Camera access denied or unavailable', true);
+    }
+  }
+
+  function resizeOverlay(){
+    const rect = video.getBoundingClientRect();
+    overlay.width = rect.width;
+    overlay.height = rect.height;
+  }
+  window.addEventListener('resize', resizeOverlay);
+
+  flipBtn.addEventListener('click', ()=>{
+    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+    startCamera();
+  });
+
+  // ---------- settings sheet ----------
+  function openSheet(){
+    document.getElementById('api-key').value = config.apiKey;
+    document.getElementById('model-id').value = config.modelId;
+    document.getElementById('model-version').value = config.version;
+    document.getElementById('conf').value = config.conf;
+    sheet.classList.add('open');
+    sheetBackdrop.style.display = 'block';
+  }
+  function hideSheet(){
+    sheet.classList.remove('open');
+    sheetBackdrop.style.display = 'none';
+  }
+  settingsBtn.addEventListener('click', openSheet);
+  closeSheet.addEventListener('click', hideSheet);
+  sheetBackdrop.addEventListener('click', hideSheet);
+
+  saveBtn.addEventListener('click', ()=>{
+    config.apiKey = document.getElementById('api-key').value.trim();
+    config.modelId = document.getElementById('model-id').value.trim();
+    config.version = (document.getElementById('model-version').value.trim() || '1');
+    config.conf = parseInt(document.getElementById('conf').value.trim() || '40', 10);
+    hideSheet();
+    if(haveConfig()){
+      placeholder.style.display = 'none';
+      setStatus('Model connected — tap Start to scan');
+    }else{
+      setStatus('Missing API key or model ID', true);
+    }
+  });
+
+  // ---------- scan loop ----------
+  scanBtn.addEventListener('click', ()=>{
+    if(!haveConfig()){ openSheet(); return; }
+    scanning ? stopScan() : startScan();
+  });
+
+  function startScan(){
+    scanning = true;
+    scanBtn.textContent = 'Stop';
+    scanBtn.classList.add('on');
+    brand.classList.add('live');
+    brandText.textContent = 'Scanning';
+    setStatus('Scanning…');
+    loopTimer = setInterval(runDetection, 1200);
+  }
+
+  function stopScan(){
+    scanning = false;
+    scanBtn.textContent = 'Start';
+    scanBtn.classList.remove('on');
+    brand.classList.remove('live');
+    brandText.textContent = 'Idle';
+    setStatus('Stopped');
+    clearInterval(loopTimer);
+    octx.clearRect(0,0,overlay.width,overlay.height);
+  }
+
+  async function runDetection(){
+    if(inFlight || !video.videoWidth) return;
+    inFlight = true;
+    try{
+      captureCanvas.width = video.videoWidth;
+      captureCanvas.height = video.videoHeight;
+      cctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+      const dataUrl = captureCanvas.toDataURL('image/jpeg', 0.7);
+      const base64 = dataUrl.split(',')[1];
+
+      const url = `https://detect.roboflow.com/${encodeURIComponent(config.modelId)}/${encodeURIComponent(config.version)}?api_key=${encodeURIComponent(config.apiKey)}&confidence=${config.conf}`;
+      const resp = await fetch(url, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+        body: base64
+      });
+
+      if(!resp.ok){
+        const t = await resp.text();
+        setStatus('Model error — check API key / model ID', true);
+        return;
+      }
+      const data = await resp.json();
+      drawDetections(data.predictions || [], captureCanvas.width, captureCanvas.height);
+    }catch(err){
+      setStatus('Network error — retrying…', true);
+    }finally{
+      inFlight = false;
+    }
+  }
+
+  function drawDetections(preds, srcW, srcH){
+    resizeOverlay();
+    octx.clearRect(0,0,overlay.width,overlay.height);
+
+    const scaleX = overlay.width / srcW;
+    const scaleY = overlay.height / srcH;
+
+    let hornwormPreds = preds.filter(p =>
+      !p.class || /hornworm/i.test(p.class) || preds.length // if model is single-class, keep all
+    );
+    // if model has multiple classes and some match "hornworm", prefer those strictly
+    const named = preds.filter(p => p.class && /hornworm/i.test(p.class));
+    if(named.length){ hornwormPreds = named; }
+
+    hornwormPreds.forEach(p=>{
+      const w = p.width * scaleX;
+      const h = p.height * scaleY;
+      const x = (p.x * scaleX) - w/2;
+      const y = (p.y * scaleY) - h/2;
+
+      octx.strokeStyle = '#e6394a';
+      octx.lineWidth = 3;
+      octx.strokeRect(x, y, w, h);
+
+      const label = `${p.class || 'hornworm'} ${Math.round((p.confidence||0)*100)}%`;
+      octx.font = '600 12px monospace';
+      const textW = octx.measureText(label).width + 12;
+      octx.fillStyle = '#e6394a';
+      octx.fillRect(x, Math.max(0,y-20), textW, 20);
+      octx.fillStyle = '#0f1611';
+      octx.fillText(label, x+6, Math.max(14,y-6));
+
+      // arrow to nearest edge if box center is far off-screen (placeholder for future use)
+    });
+
+    countEl.textContent = hornwormPreds.length;
+
+    if(hornwormPreds.length > lastDetectionCount){
+      if(navigator.vibrate){ navigator.vibrate([120, 60, 120]); }
+      setStatus(`Found ${hornwormPreds.length} — check the red box${hornwormPreds.length>1?'es':''}`);
+    }else if(hornwormPreds.length === 0){
+      setStatus('Scanning…');
+    }
+    lastDetectionCount = hornwormPreds.length;
+  }
+
+  // init
+  startCamera();
+})();
+</script>
+</body>
+</html>
