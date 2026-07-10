@@ -208,7 +208,7 @@
     <div class="step-num">2</div>
     <div class="step-body">
       <h3>Find a hornworm model</h3>
-      <p>Open a model, then look for the code snippet on its page — it shows a model ID like <b>project-name/8</b>. Copy that whole string.</p>
+      <p>Open a model below, then just copy its page URL from your address bar and paste it in the box — no code needed, we'll figure out the rest.</p>
       <a class="linkbtn" href="https://universe.roboflow.com/search?q=tomato%20hornworm" target="_blank">Browse hornworm models →</a>
     </div>
   </div>
@@ -216,9 +216,10 @@
   <label>API key</label>
   <input id="api-key" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="paste your personal API key">
 
-  <label>Model ID (from the code snippet)</label>
-  <input id="model-full" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. tomato-insects-pjuun/8">
-  <div class="field-error" id="model-error">Should look like name/number — check the snippet again.</div>
+  <label>Model page URL</label>
+  <input id="model-full" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="e.g. universe.roboflow.com/test-fpkn1/tomato-insects-pjuun">
+  <div class="field-error" id="model-error">Couldn't find that model — check the URL and API key.</div>
+
 
   <label>Confidence % (lower = more detections, more false alarms)</label>
   <input id="conf" type="text" inputmode="numeric" placeholder="40">
@@ -320,9 +321,10 @@
 
   function fillSheetFromConfig(){
     document.getElementById('api-key').value = config.apiKey;
-    document.getElementById('model-full').value = config.modelId && config.version ? (config.modelId + '/' + config.version) : '';
+    document.getElementById('model-full').value = config.sourceUrl || '';
     document.getElementById('conf').value = config.conf;
   }
+
   function openSheet(){
     fillSheetFromConfig();
     modelError.style.display = 'none';
@@ -346,25 +348,67 @@
     setStatus('Settings cleared');
   });
 
-  saveBtn.addEventListener('click', ()=>{
+  function parseWorkspaceProject(input){
+    let cleaned = input.trim();
+    cleaned = cleaned.replace(/^https?:\/\//, '').replace(/^universe\.roboflow\.com\//, '');
+    const segments = cleaned.split('/').map(s=>s.trim()).filter(Boolean);
+    if(segments.length < 2) return null;
+    return { workspace: segments[0], project: segments[1] };
+  }
+
+  saveBtn.addEventListener('click', async ()=>{
     const apiKey = document.getElementById('api-key').value.trim();
     const modelFull = document.getElementById('model-full').value.trim();
     const conf = parseInt(document.getElementById('conf').value.trim() || '40', 10);
+    modelError.style.display = 'none';
+    saveHint.textContent = '';
 
-    const parts = modelFull.split('/').map(s=>s.trim()).filter(Boolean);
-    if(parts.length < 2 || !apiKey){
-      modelError.style.display = parts.length < 2 ? 'block' : 'none';
-      saveHint.textContent = !apiKey ? 'API key is required.' : '';
+    if(!apiKey){
+      saveHint.textContent = 'API key is required.';
       return;
     }
-    const version = parts[parts.length-1];
-    const modelId = parts.slice(0, parts.length-1).join('/');
+    const parsed = parseWorkspaceProject(modelFull);
+    if(!parsed){
+      saveHint.textContent = "Paste the model's page URL, e.g. universe.roboflow.com/workspace/project.";
+      return;
+    }
 
-    config = { apiKey, modelId, version, conf };
-    persistConfig();
-    hideSheet();
-    updatePlaceholder();
-    setStatus('Model connected — tap Start to scan');
+    saveBtn.disabled = true;
+    saveHint.textContent = 'Looking up the model…';
+    try{
+      const lookupUrl = `https://api.roboflow.com/${parsed.workspace}/${parsed.project}?api_key=${encodeURIComponent(apiKey)}`;
+      const resp = await fetch(lookupUrl);
+      if(!resp.ok){
+        modelError.textContent = resp.status === 401
+          ? 'That API key was rejected — double check it.'
+          : "Couldn't find that model — check the URL.";
+        modelError.style.display = 'block';
+        saveHint.textContent = '';
+        return;
+      }
+      const data = await resp.json();
+      const versions = (data.project && data.project.versions) || [];
+      if(!versions.length){
+        modelError.textContent = 'This project has no trained versions yet.';
+        modelError.style.display = 'block';
+        saveHint.textContent = '';
+        return;
+      }
+      const versionNums = versions.map(v => parseInt(String(v.id).split('/').pop(), 10)).filter(n=>!isNaN(n));
+      const latestVersion = String(Math.max(...versionNums));
+
+      config = { apiKey, modelId: parsed.project, version: latestVersion, conf, sourceUrl: modelFull };
+      persistConfig();
+      hideSheet();
+      updatePlaceholder();
+      setStatus(`Connected to ${parsed.project} v${latestVersion} — tap Start`);
+    }catch(err){
+      saveHint.textContent = '';
+      modelError.textContent = 'Network error looking up the model — try again.';
+      modelError.style.display = 'block';
+    }finally{
+      saveBtn.disabled = false;
+    }
   });
 
   scanBtn.addEventListener('click', ()=>{
